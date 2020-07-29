@@ -1,20 +1,16 @@
 #ifndef GDWG_GRAPH_HPP
 #define GDWG_GRAPH_HPP
 
-#include <algorithm>
 #include <concepts/concepts.hpp>
 #include <concepts/type_traits.hpp>
 #include <initializer_list>
-#include <map>
+#include <iterator>
 #include <memory>
 #include <ostream>
 #include <range/v3/iterator.hpp>
 #include <range/v3/utility.hpp>
 #include <range/v3/utility/common_tuple.hpp>
 #include <set>
-#include <tuple>
-#include <type_traits>
-#include <utility>
 #include <vector>
 
 template<typename T>
@@ -62,10 +58,9 @@ namespace gdwg {
 	requires concepts::totally_ordered<N>and concepts::totally_ordered<E> class graph {
 	public:
 		class iterator {
-			friend class graph<N, E>;
+			using edges_iterator = typename edges_set<N, E>::const_iterator;
 
 		public:
-			using edges_iterator = typename edges_set<N, E>::const_iterator;
 			using value_type = ranges::common_tuple<N, N, E>;
 			using difference_type = std::ptrdiff_t;
 			using iterator_category = std::bidirectional_iterator_tag;
@@ -73,13 +68,15 @@ namespace gdwg {
 			iterator() = default;
 
 			// Iterator source
-			explicit iterator(edges_set<N, E> const& pointee, edges_iterator iter) noexcept
-			: pointee_{&pointee}
+			explicit iterator(edges_iterator begin, edges_iterator end, edges_iterator iter) noexcept
+			: begin_{begin}
+			, end_{end}
 			, iter_{iter} {}
-			auto operator*() -> ranges::common_tuple<N const&, N const&, E const&> {
+			auto operator*() const -> ranges::common_tuple<N const, N const, E const> {
 				return ranges::common_tuple<N, N, E>(*(iter_->src), *(iter_->dst), *(iter_->edge));
 			}
 			// Iterator traversal
+			// just use the set iterator,it is convenient
 			auto operator++() -> iterator& {
 				++iter_;
 				return *this;
@@ -100,20 +97,19 @@ namespace gdwg {
 			}
 			// Iterator comparison
 			auto operator==(iterator const& other) const -> bool {
-				if (other.iter_ == other.pointee_->end() or iter_ == pointee_->end()) {
-					return static_cast<bool>(other.iter_ == other.pointee_->end()
-					                         and iter_ == pointee_->end());
+				// consider about the iterator points to the end()
+				if (other.iter_ == other.end_ or iter_ == end_) {
+					return static_cast<bool>(other.iter_ == other.end_ and iter_ == end_);
 				}
 				return static_cast<bool>(*(iter_->src) == *(other.iter_->src)
 				                         and *(iter_->dst) == *(other.iter_->dst)
 				                         and *(iter_->edge) == *(other.iter_->edge));
 			}
-			auto get_set_iter() const -> edges_iterator {
-				return iter_;
-			}
+			friend class graph<N, E>;
 
 		private:
-			edges_set<N, E> const* pointee_;
+			edges_iterator begin_;
+			edges_iterator end_;
 			edges_iterator iter_;
 		};
 		struct value_type {
@@ -123,26 +119,26 @@ namespace gdwg {
 		};
 		// Constructors
 		graph() noexcept = default;
-		graph(std::initializer_list<N> il) {
+		graph(std::initializer_list<N> il) noexcept {
 			for (const auto& l : il) {
 				insert_node(l);
 			}
 		}
 		template<ranges::forward_iterator I, ranges::sentinel_for<I> S>
-		requires ranges::indirectly_copyable<I, N*> graph(I first, S last) {
+		requires ranges::indirectly_copyable<I, N*> graph(I first, S last) noexcept {
 			for (; !(first == last); ++first) {
-				insert_node(*first); // if is duplicate value, InsertNode() will ignore it
+				insert_node(*first);
 			}
 		}
 		template<ranges::forward_iterator I, ranges::sentinel_for<I> S>
-		requires ranges::indirectly_copyable<I, value_type*> graph(I first, S last) {
+		requires ranges::indirectly_copyable<I, value_type*> graph(I first, S last) noexcept {
 			for (; first != last; ++first) {
 				auto src = first->from;
 				auto dst = first->to;
 				auto weight = first->weight;
-				insert_node(src);
+				insert_node(src); // insert_node will handle duplicate nodes
 				insert_node(dst);
-				inner_insert_edge(src, dst, weight);
+				inner_insert_edge(src, dst, weight); // inner_insert_edge will handle duplicate edges
 			}
 		}
 		graph(graph&& other) noexcept
@@ -156,21 +152,21 @@ namespace gdwg {
 			}
 			return *this;
 		}
-		graph(graph const& other) {
+		graph(graph const& other) noexcept {
 			if (this != &other) {
 				*this = other;
 			}
 		}
-		auto operator=(graph const& other) -> graph& {
+		auto operator=(graph const& other) noexcept -> graph& {
 			if (this != &other) {
 				for (auto& i : other.all_nodes_) {
-					auto tmp = std::make_shared<N>(*i);
+					auto tmp = std::make_shared<N>(*i); // make new entities of edge
 					all_nodes_.emplace(std::move(tmp));
 				}
 				for (auto& i : other.all_edges_) {
-					auto src = *(all_nodes_.find(i.src));
+					auto src = *(all_nodes_.find(i.src)); // find node entities in the nodes set
 					auto dst = *(all_nodes_.find(i.dst));
-					auto edge = std::make_shared<E>(*(i.edge));
+					auto edge = std::make_shared<E>(*(i.edge)); // make new entities of edge
 					edge_struct<N, E> edge_struct{src, dst, edge};
 					all_edges_.emplace(edge_struct);
 				}
@@ -179,8 +175,8 @@ namespace gdwg {
 		}
 
 		// Modifiers
-		auto insert_node(N const& value) -> bool {
-			if (is_node(value)) {
+		auto insert_node(N const& value) noexcept -> bool {
+			if (is_node(value)) { // will not insert duplicate nodes
 				return false;
 			}
 			auto node = std::make_shared<N>(value);
@@ -188,7 +184,7 @@ namespace gdwg {
 			return true;
 		}
 		auto insert_edge(N const& src, N const& dst, E const& weight) -> bool {
-			if (!is_node(src) || !is_node(dst)) {
+			if (!is_node(src) or !is_node(dst)) {
 				throw std::runtime_error("Cannot call gdwg::graph<N, E>::insert_edge when either src "
 				                         "or dst node does not exist");
 			}
@@ -202,8 +198,8 @@ namespace gdwg {
 			if (is_node(new_data)) {
 				return false;
 			}
-			**(all_nodes_.find(old_data)) = new_data;
-			auto tmp1 = all_nodes_;
+			**(all_nodes_.find(old_data)) = new_data; // just modify the entity's value
+			auto tmp1 = all_nodes_; // copy constructor will resort the set, it is an easy way
 			auto tmp2 = all_edges_;
 			all_nodes_ = std::move(tmp1);
 			all_edges_ = std::move(tmp2);
@@ -214,19 +210,20 @@ namespace gdwg {
 				throw std::runtime_error("Cannot call comp6771::graph<N, E>::merge_replace_node on old "
 				                         "or new data if they don't exist in the graph");
 			}
-			all_nodes_.erase(all_nodes_.find(old_data));
+			all_nodes_.erase(all_nodes_.find(old_data)); // erase old nodes in nodes set
 			auto new_ptr = *(all_nodes_.find(new_data));
+			// create a new edge set, because copying value to shared_ptr in struct has some problems
 			auto new_edges_set = decltype(all_edges_){};
 			edge_struct<N, E> tmp{};
 			for (auto& i : all_edges_) {
-				tmp.src = *(i.src) == old_data ? new_ptr : i.src;
+				tmp.src = *(i.src) == old_data ? new_ptr : i.src; // change old value to new
 				tmp.dst = *(i.dst) == old_data ? new_ptr : i.dst;
 				tmp.edge = i.edge;
 				new_edges_set.emplace(tmp);
 			}
 			all_edges_ = std::move(new_edges_set);
 		}
-		auto erase_node(N const& value) -> bool {
+		auto erase_node(N const& value) noexcept -> bool {
 			auto iter = all_nodes_.find(value);
 			if (iter == all_nodes_.end()) {
 				return false;
@@ -235,7 +232,7 @@ namespace gdwg {
 			auto new_edges_set = decltype(all_edges_){};
 			for (auto& i : all_edges_) {
 				if (*(i.src) == value or *(i.dst) == value) {
-					continue;
+					continue; // if the edge has old value, will not add it to new edge set
 				}
 				new_edges_set.emplace(i);
 			}
@@ -258,11 +255,19 @@ namespace gdwg {
 			}
 			return false;
 		}
-		auto erase_edge(iterator i) -> iterator {
-			return iterator(all_edges_, all_edges_.erase(i.get_set_iter()));
+		auto erase_edge(iterator i) noexcept -> iterator {
+			if (i == end()) {
+				return end();
+			}
+			// use set erase method, easy!
+			return iterator(all_edges_.begin(), all_edges_.end(), all_edges_.erase(i.iter_));
 		} // Amortised constant time.
-		auto erase_edge(iterator i, iterator s) -> iterator {
-			return iterator(all_edges_, all_edges_.erase(i.get_set_iter(), s.get_set_iter()));
+		auto erase_edge(iterator i, iterator s) noexcept -> iterator {
+			if (s == end()) {
+				return end();
+			}
+			// use set erase method, easy!
+			return iterator(all_edges_.begin(), all_edges_.end(), all_edges_.erase(i.iter_, s.iter_));
 		} // O(d)
 		auto clear() noexcept -> void {
 			all_edges_.clear();
@@ -270,18 +275,22 @@ namespace gdwg {
 		}
 
 		// Accessors
-		[[nodiscard]] auto is_node(N const& value) const -> bool { // O(log?(n))
+		[[nodiscard]] auto is_node(N const& value) const noexcept -> bool {
 			return static_cast<bool>(all_nodes_.find(value) != all_nodes_.end());
 		}
-		[[nodiscard]] auto empty() const -> bool {
+		[[nodiscard]] auto empty() const noexcept -> bool {
 			return static_cast<bool>(all_nodes_.size() == 0);
 		}
 		[[nodiscard]] auto is_connected(N const& src, N const& dst) const -> bool {
+			if (!is_node(src) or !is_node(dst)) {
+				throw std::runtime_error("Cannot call gdwg::graph<N, E>::is_connected if src or dst "
+				                         "node don't exist in the graph");
+			}
 			return std::any_of(all_edges_.begin(), all_edges_.end(), [src, dst](auto i) {
 				return *(i.src) == src and *(i.dst) == dst;
 			});
 		}
-		[[nodiscard]] auto nodes() const -> std::vector<N> {
+		[[nodiscard]] auto nodes() const noexcept -> std::vector<N> {
 			std::vector<N> vec{};
 			for (auto& i : all_nodes_) {
 				vec.emplace_back(*i);
@@ -289,6 +298,10 @@ namespace gdwg {
 			return vec;
 		}; // O(n)
 		[[nodiscard]] auto weights(N const& src, N const& dst) const -> std::vector<E> {
+			if (!is_node(src) or !is_node(dst)) {
+				throw std::runtime_error("Cannot call gdwg::graph<N, E>::weights if src or dst node "
+				                         "don't exist in the graph");
+			}
 			std::vector<E> vec{};
 			for (auto& i : all_edges_) {
 				if (*(i.src) == src and *(i.dst) == dst) {
@@ -296,34 +309,54 @@ namespace gdwg {
 				}
 			}
 			return vec;
-		} // O(log?(n)?+?e)
-		[[nodiscard]] auto find(N const& src, N const& dst, E const& weight) const
-		   -> iterator { // O(log?(n)?+?log?(e))
+		} // O(log(n) + e)
+		[[nodiscard]] auto find(N const& src, N const& dst, E const& weight) const noexcept
+		   -> iterator { // O(log(n) + log(e))
 			edge_struct<N, E> value{std::make_shared<N>(src),
 			                        std::make_shared<N>(dst),
 			                        std::make_shared<E>(weight)};
-			return iterator(all_edges_, all_edges_.find(value));
+			return iterator(all_edges_.begin(), all_edges_.end(), all_edges_.find(value));
 		}
 		[[nodiscard]] auto connections(N const& src) const -> std::vector<N> {
-			std::vector<N> vec{};
-			for (auto& i : all_edges_) {
-				if (*(i.src) == src) {
-					vec.emplace_back(*(i.dst));
-				}
+			if (!is_node(src)) {
+				throw std::runtime_error("Cannot call gdwg::graph<N, E>::connections if src doesn't "
+				                         "exist in the graph");
 			}
+			auto iter = binary_search(src); // find the edge iterator which has src as from.
+			std::vector<N> vec{};
+			if (iter == all_edges_.end()) {
+				return vec;
+			}
+			auto tmp = iter;
+			vec.emplace_back(*(iter->dst));
+			while (tmp != all_edges_.begin() and *(tmp->src) == src) {
+				--tmp;
+				if (*(tmp->dst) != vec.back()) {
+					vec.emplace_back(*(tmp->dst));
+				}
+			} // O(e)
+			std::reverse(vec.begin(), vec.end()); // O(e)
+			tmp = ++iter;
+			while (tmp != all_edges_.end() and *(tmp->src) == src) {
+				if (*(tmp->dst) != vec.back()) {
+					vec.emplace_back(*(tmp->dst));
+				}
+				++tmp;
+			} // O(e)
 			return vec;
-		} // O(log?(n)?+?e)
+		} // O(log(n) + e)
 
 		// Range access
-		[[nodiscard]] auto begin() const -> iterator {
-			return iterator(all_edges_, all_edges_.begin());
+		[[nodiscard]] auto begin() const noexcept -> iterator {
+			return iterator(all_edges_.begin(), all_edges_.end(), all_edges_.begin());
 		}
-		[[nodiscard]] auto end() const -> iterator {
-			return iterator(all_edges_, all_edges_.end());
+		[[nodiscard]] auto end() const noexcept -> iterator {
+			return iterator(all_edges_.begin(), all_edges_.end(), all_edges_.end());
 		}
 
 		// Comparisons
-		[[nodiscard]] auto operator==(graph const& other) const -> bool {
+		[[nodiscard]] auto operator==(graph const& other) const noexcept -> bool {
+			// compare nodes set
 			auto it_1 = all_nodes_.begin();
 			auto it_2 = other.all_nodes_.begin();
 			while (it_1 != all_nodes_.end() and it_2 != other.all_nodes_.end()) {
@@ -336,6 +369,7 @@ namespace gdwg {
 			if (it_1 != all_nodes_.end() or it_2 != other.all_nodes_.end()) {
 				return false;
 			}
+			// compare edges set
 			auto it_3 = all_edges_.begin();
 			auto it_4 = other.all_edges_.begin();
 			while (it_3 != all_edges_.end() and it_4 != other.all_edges_.end()) {
@@ -348,18 +382,10 @@ namespace gdwg {
 				it_4++;
 			}
 			return !static_cast<bool>(it_3 != all_edges_.end() or it_4 != other.all_edges_.end());
-		} // O(n?+?e)
-
-		// auto change_struct_inner_value(N const& src, N const& dst, E const& weight) -> void {
-		// 	for (auto& i : all_edges_) {
-		// 		i.src = std::make_shared<N>(src);
-		// 		i.dst = std::make_shared<N>(dst);
-		// 		i.edge = std::make_shared<N>(weight);
-		// 	}
-		// }
+		} // O(n + e)
 
 		// Extractor
-		friend auto operator<<(std::ostream& os, graph const& g) -> std::ostream& {
+		friend auto operator<<(std::ostream& os, graph const& g) noexcept -> std::ostream& {
 			auto it_1 = g.all_nodes_.begin();
 			auto it_2 = g.all_edges_.begin();
 			while (it_1 != g.all_nodes_.end()) {
@@ -377,24 +403,39 @@ namespace gdwg {
 	private:
 		nodes_set<N> all_nodes_{};
 		edges_set<N, E> all_edges_{};
-		auto inner_insert_edge(N const& src, N const& dst, E const& weight) -> bool {
-			if (find(src, dst, weight) != end()) {
+		auto inner_insert_edge(N const& src, N const& dst, E const& weight) noexcept -> bool {
+			if (find(src, dst, weight) != end()) { // check edge inside
 				return false;
 			}
-			auto node_src = get_node_ptr(src);
-			auto node_dst = get_node_ptr(dst);
+			auto node_src = *(all_nodes_.find(src));
+			auto node_dst = *(all_nodes_.find(dst));
 			auto edge = std::make_shared<E>(weight);
 			edge_struct<N, E> value{node_src, node_dst, edge};
 			all_edges_.emplace(value);
 			return true;
 		}
-		[[nodiscard]] auto get_node_ptr(N const& value) const -> std::shared_ptr<N> {
-			for (auto& i : all_nodes_) {
-				if (*i == value) {
-					return i;
-				}
+		[[nodiscard]] auto binary_search(N const& value) const noexcept
+		   -> decltype(all_edges_.begin()) {
+			auto end = --all_edges_.end();
+			auto start = all_edges_.begin();
+			if (*(start->src) == value or *(end->src) == value) {
+				return *(start->src) == value ? start : end;
 			}
-			return nullptr;
+			auto mid = decltype(all_edges_.begin()){};
+			while (*(start->src) < value and *(end->src) > value) {
+				mid = start;
+				std::advance(mid, std::distance(start, end) / 2);
+				if (*(mid->src) < value) {
+					start = mid;
+					continue;
+				}
+				if (*(mid->src) > value) {
+					end = mid;
+					continue;
+				}
+				return mid;
+			}
+			return all_edges_.end();
 		}
 	};
 } // namespace gdwg

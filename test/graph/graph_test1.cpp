@@ -61,6 +61,7 @@ TEST_CASE("basic test 4") {
 	};
 
 	auto h = graph2(vt.begin(), vt.end());
+
 	CHECK(!h.insert_edge(5, 2, 7));
 	auto hm{std::move(h)};
 	CHECK(!hm.insert_edge(5, 2, 7));
