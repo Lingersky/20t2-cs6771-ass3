@@ -1,11 +1,33 @@
 #include <iostream>
 #include <iterator>
+#include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
 #include "gdwg/graph.hpp"
 #include <concepts/concepts.hpp>
 
+auto main() -> int {
+	using graph2 = gdwg::graph<int, int>;
+	auto const vt = std::vector<graph2::value_type>{
+	   {4, 1, -4},
+	   {3, 2, 2},
+	   {2, 4, 2},
+	   {2, 1, 1},
+	   {6, 2, 5},
+	   {6, 3, 10},
+	   {1, 5, -1},
+	   {3, 6, -8},
+	   {4, 5, 3},
+	   {5, 2, 7},
+	};
+
+	auto h = graph2(vt.begin(), vt.end());
+	// h.change_struct_inner_value(2, 2, 10);
+}
+
+#if 0
 auto main() -> int {
 	using graph = gdwg::graph<std::string, int>;
 	auto g = graph{};
@@ -117,3 +139,4 @@ auto main() -> int {
 	auto a = 1;
 	return a;
 }
+#endif
