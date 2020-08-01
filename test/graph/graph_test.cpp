@@ -16,7 +16,7 @@ TEST_CASE("graph()") {
 	auto out = std::ostringstream{};
 	out << g;
 	CHECK(out.str().empty());
-	// static_assert(ranges::bidirectional_iterator<gdwg::graph<int, int>::iterator>);
+	//
 }
 TEST_CASE("graph(std::initializer_list<N> il)") {
 	auto g = gdwg::graph<int, std::string>{2, 3, 4};
@@ -341,7 +341,7 @@ TEST_CASE("erase_edge(iter)") {
 	};
 	auto h = graph(vt1.begin(), vt1.end());
 	CHECK(h.erase_edge(h.find(1, 2, 1)) == h.find(2, 2, 1));
-	CHECK(h.erase_edge(h.end())==h.end());
+	CHECK(h.erase_edge(h.end()) == h.end());
 	auto out1 = std::ostringstream{};
 	out1 << h;
 	auto const vt2 = std::vector<graph::value_type>{
@@ -610,4 +610,8 @@ TEST_CASE("iter: operator==") {
 	iter_2--;
 	iter_2--;
 	CHECK(iter_2 == iter_1);
+}
+
+TEST_CASE("Iterator Type Test") {
+	static_assert(ranges::bidirectional_iterator<gdwg::graph<int, int>::iterator>);
 }

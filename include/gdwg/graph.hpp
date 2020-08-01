@@ -72,31 +72,31 @@ namespace gdwg {
 			: begin_{begin}
 			, end_{end}
 			, iter_{iter} {}
-			auto operator*() const noexcept-> ranges::common_tuple<N const, N const, E const> {
+			auto operator*() const noexcept -> ranges::common_tuple<N const, N const, E const> {
 				return ranges::common_tuple<N, N, E>(*(iter_->src), *(iter_->dst), *(iter_->edge));
 			}
 			// Iterator traversal
 			// just use the set iterator,it is convenient
-			auto operator++() noexcept-> iterator& {
+			auto operator++() noexcept -> iterator& {
 				++iter_;
 				return *this;
 			}
-			auto operator++(int) noexcept-> iterator {
+			auto operator++(int) noexcept -> iterator {
 				auto temp = *this;
 				++*this;
 				return temp;
 			}
-			auto operator--() noexcept-> iterator& {
+			auto operator--() noexcept -> iterator& {
 				--iter_;
 				return *this;
 			}
-			auto operator--(int) noexcept-> iterator {
+			auto operator--(int) noexcept -> iterator {
 				auto temp = *this;
 				--*this;
 				return temp;
 			}
 			// Iterator comparison
-			auto operator==(iterator const& other) const noexcept-> bool {
+			auto operator==(iterator const& other) const noexcept -> bool {
 				// consider about the iterator points to the end()
 				if (other.iter_ == other.end_ or iter_ == end_) {
 					return static_cast<bool>(other.iter_ == other.end_ and iter_ == end_);
@@ -293,7 +293,7 @@ namespace gdwg {
 			});
 		}
 		[[nodiscard]] auto nodes() const noexcept -> std::vector<N> {
-			std::vector<N> vec{}; //cannot use iterator of set to construct, why errors?
+			std::vector<N> vec{}; // cannot use iterator of set to construct, why errors?
 			for (auto& i : all_nodes_) {
 				vec.emplace_back(*i);
 			}
