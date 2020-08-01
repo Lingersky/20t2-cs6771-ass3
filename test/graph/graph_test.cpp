@@ -98,12 +98,16 @@ TEST_CASE("auto operator=(graph&& other) noexcept -> graph&") {
 	   {2, 4, 5},
 	};
 	auto h = graph(vt.begin(), vt.end());
+	auto iter = h.begin();
 	auto out1 = std::ostringstream{};
 	out1 << h;
 	auto g = std::move(h);
 	auto out2 = std::ostringstream{};
 	out2 << g;
 	CHECK(out1.str() == out2.str());
+	CHECK(std::get<0>(*iter) == 1);
+	CHECK(std::get<1>(*iter) == 1);
+	CHECK(std::get<2>(*iter) == 1);
 }
 
 TEST_CASE("graph(graph const& other)") {
@@ -337,6 +341,7 @@ TEST_CASE("erase_edge(iter)") {
 	};
 	auto h = graph(vt1.begin(), vt1.end());
 	CHECK(h.erase_edge(h.find(1, 2, 1)) == h.find(2, 2, 1));
+	CHECK(h.erase_edge(h.end())==h.end());
 	auto out1 = std::ostringstream{};
 	out1 << h;
 	auto const vt2 = std::vector<graph::value_type>{
@@ -394,15 +399,17 @@ TEST_CASE("clear") {
 	CHECK(h.empty());
 }
 TEST_CASE("is_node") {
-	auto g = gdwg::graph<int, std::string>{2, 3, 4};
+	auto const g = gdwg::graph<int, std::string>{2, 3, 4};
 	CHECK(g.is_node(2));
 	CHECK(g.is_node(3));
 	CHECK(g.is_node(4));
 	CHECK(!g.is_node(5));
 }
 TEST_CASE("empty") {
-	auto g = gdwg::graph<int, std::string>{};
+	auto const g = gdwg::graph<int, std::string>{};
 	CHECK(g.empty());
+	auto const h = gdwg::graph<int, std::string>{2, 3, 4};
+	CHECK(!h.empty());
 }
 TEST_CASE("is_connected") {
 	using graph = gdwg::graph<int, int>;
@@ -414,7 +421,7 @@ TEST_CASE("is_connected") {
 	   {2, 4, 1},
 	   {2, 5, 1},
 	};
-	auto h = graph(vt1.begin(), vt1.end());
+	auto const h = graph(vt1.begin(), vt1.end());
 	CHECK_THROWS_MATCHES(h.is_connected(1, 6),
 	                     std::runtime_error,
 	                     Catch::Matchers::Message("Cannot call gdwg::graph<N, E>::is_connected if "
@@ -438,10 +445,10 @@ TEST_CASE("nodes") {
 	   {2, 4, 1},
 	   {2, 5, 1},
 	};
-	auto h = graph(vt1.begin(), vt1.end());
+	auto const h = graph(vt1.begin(), vt1.end());
 	std::vector<int> vec{1, 2, 3, 4, 5};
 	CHECK(h.nodes() == vec);
-	auto g = gdwg::graph<int, std::string>{};
+	auto const g = gdwg::graph<int, std::string>{};
 	CHECK(g.nodes().empty());
 	auto k = gdwg::graph<int, std::string>{2, 3, 4};
 	CHECK(k.nodes() == decltype(vec){2, 3, 4});
@@ -458,7 +465,7 @@ TEST_CASE("weights") {
 	   {2, 4, 1},
 	   {2, 5, 1},
 	};
-	auto h = graph(vt1.begin(), vt1.end());
+	auto const h = graph(vt1.begin(), vt1.end());
 	CHECK_THROWS_MATCHES(h.weights(1, 6),
 	                     std::runtime_error,
 	                     Catch::Matchers::Message("Cannot call gdwg::graph<N, E>::weights if src or "
@@ -468,6 +475,7 @@ TEST_CASE("weights") {
 	                     Catch::Matchers::Message("Cannot call gdwg::graph<N, E>::weights if src or "
 	                                              "dst node don't exist in the graph"));
 	CHECK(h.weights(2, 3) == std::vector<int>{3, 5, 7});
+	CHECK(h.weights(3, 2).empty());
 }
 TEST_CASE("find") {
 	using graph = gdwg::graph<int, int>;

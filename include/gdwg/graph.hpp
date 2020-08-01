@@ -72,31 +72,31 @@ namespace gdwg {
 			: begin_{begin}
 			, end_{end}
 			, iter_{iter} {}
-			auto operator*() const -> ranges::common_tuple<N const, N const, E const> {
+			auto operator*() const noexcept-> ranges::common_tuple<N const, N const, E const> {
 				return ranges::common_tuple<N, N, E>(*(iter_->src), *(iter_->dst), *(iter_->edge));
 			}
 			// Iterator traversal
 			// just use the set iterator,it is convenient
-			auto operator++() -> iterator& {
+			auto operator++() noexcept-> iterator& {
 				++iter_;
 				return *this;
 			}
-			auto operator++(int) -> iterator {
+			auto operator++(int) noexcept-> iterator {
 				auto temp = *this;
 				++*this;
 				return temp;
 			}
-			auto operator--() -> iterator& {
+			auto operator--() noexcept-> iterator& {
 				--iter_;
 				return *this;
 			}
-			auto operator--(int) -> iterator {
+			auto operator--(int) noexcept-> iterator {
 				auto temp = *this;
 				--*this;
 				return temp;
 			}
 			// Iterator comparison
-			auto operator==(iterator const& other) const -> bool {
+			auto operator==(iterator const& other) const noexcept-> bool {
 				// consider about the iterator points to the end()
 				if (other.iter_ == other.end_ or iter_ == end_) {
 					return static_cast<bool>(other.iter_ == other.end_ and iter_ == end_);
@@ -146,27 +146,25 @@ namespace gdwg {
 		, all_edges_{std::move(other.all_edges_)} {}
 
 		auto operator=(graph&& other) noexcept -> graph& {
-			if (this != &other) {
-				all_edges_ = std::move(other.all_edges_);
-				all_nodes_ = std::move(other.all_nodes_);
-			}
+			all_edges_ = std::move(other.all_edges_);
+			all_nodes_ = std::move(other.all_nodes_);
 			return *this;
 		}
 		graph(graph const& other) noexcept {
-			if (this != &other) {
-				*this = other;
-			}
+			*this = other;
 		}
-		auto operator=(graph const& other) noexcept -> graph& {
+		auto operator=(graph const& other) -> graph& {
 			if (this != &other) {
 				for (auto& i : other.all_nodes_) {
 					auto tmp = std::make_shared<N>(*i); // make new entities of edge
+					static_assert(std::is_same_v<decltype(tmp), std::shared_ptr<N>>);
 					all_nodes_.emplace(std::move(tmp));
 				}
 				for (auto& i : other.all_edges_) {
 					auto src = *(all_nodes_.find(i.src)); // find node entities in the nodes set
 					auto dst = *(all_nodes_.find(i.dst));
 					auto edge = std::make_shared<E>(*(i.edge)); // make new entities of edge
+					static_assert(std::is_same_v<decltype(edge), std::shared_ptr<E>>);
 					edge_struct<N, E> edge_struct{src, dst, edge};
 					all_edges_.emplace(edge_struct);
 				}
@@ -175,11 +173,12 @@ namespace gdwg {
 		}
 
 		// Modifiers
-		auto insert_node(N const& value) noexcept -> bool {
+		auto insert_node(N const& value) -> bool {
 			if (is_node(value)) { // will not insert duplicate nodes
 				return false;
 			}
 			auto node = std::make_shared<N>(value);
+			static_assert(std::is_same_v<decltype(node), std::shared_ptr<N>>);
 			all_nodes_.emplace(node);
 			return true;
 		}
@@ -248,6 +247,9 @@ namespace gdwg {
 			edge_struct<N, E> value{std::make_shared<N>(src),
 			                        std::make_shared<N>(dst),
 			                        std::make_shared<E>(weight)};
+			static_assert(std::is_same_v<decltype(value.src), std::shared_ptr<N>>);
+			static_assert(std::is_same_v<decltype(value.dst), std::shared_ptr<N>>);
+			static_assert(std::is_same_v<decltype(value.edge), std::shared_ptr<E>>);
 			auto iter = all_edges_.find(value);
 			if (iter != all_edges_.end()) {
 				all_edges_.erase(iter);
@@ -291,7 +293,7 @@ namespace gdwg {
 			});
 		}
 		[[nodiscard]] auto nodes() const noexcept -> std::vector<N> {
-			std::vector<N> vec{};
+			std::vector<N> vec{}; //cannot use iterator of set to construct, why errors?
 			for (auto& i : all_nodes_) {
 				vec.emplace_back(*i);
 			}
@@ -310,11 +312,13 @@ namespace gdwg {
 			}
 			return vec;
 		} // O(log(n) + e)
-		[[nodiscard]] auto find(N const& src, N const& dst, E const& weight) const noexcept
-		   -> iterator { // O(log(n) + log(e))
+		[[nodiscard]] auto find(N const& src, N const& dst, E const& weight) const -> iterator {
 			edge_struct<N, E> value{std::make_shared<N>(src),
 			                        std::make_shared<N>(dst),
 			                        std::make_shared<E>(weight)};
+			static_assert(std::is_same_v<decltype(value.src), std::shared_ptr<N>>);
+			static_assert(std::is_same_v<decltype(value.dst), std::shared_ptr<N>>);
+			static_assert(std::is_same_v<decltype(value.edge), std::shared_ptr<E>>);
 			return iterator(all_edges_.begin(), all_edges_.end(), all_edges_.find(value));
 		}
 		[[nodiscard]] auto connections(N const& src) const -> std::vector<N> {
@@ -403,13 +407,14 @@ namespace gdwg {
 	private:
 		nodes_set<N> all_nodes_{};
 		edges_set<N, E> all_edges_{};
-		auto inner_insert_edge(N const& src, N const& dst, E const& weight) noexcept -> bool {
+		auto inner_insert_edge(N const& src, N const& dst, E const& weight) -> bool {
 			if (find(src, dst, weight) != end()) { // check edge inside
 				return false;
 			}
 			auto node_src = *(all_nodes_.find(src));
 			auto node_dst = *(all_nodes_.find(dst));
 			auto edge = std::make_shared<E>(weight);
+			static_assert(std::is_same_v<decltype(edge), std::shared_ptr<E>>);
 			edge_struct<N, E> value{node_src, node_dst, edge};
 			all_edges_.emplace(value);
 			return true;
