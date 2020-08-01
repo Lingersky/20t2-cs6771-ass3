@@ -299,13 +299,18 @@ auto operator--() -> iterator&
 |:---------------------------------------------------:|:-------:|
 | Iterator Point to the Right Element After Decrement | Passed  |
 
-- _**Iterator? Operator==**_
+- _**Iterator: Operator==**_
 ```C++
 auto operator==(iterator const& other) const noexcept-> bool
 ```
 |                  ITEMS                  | RESULTS |
 |:---------------------------------------:|:-------:|
 | Iterator Point to Same Element Is Equal | Passed  |
+
+- _**Iterator Type**_
+|        ITEMS        | RESULTS |
+|:-------------------:|:-------:|
+| Iterator Type Check | Passed  |
 
 ## Others Not Tested Separately
 ```C++
