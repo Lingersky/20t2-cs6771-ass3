@@ -308,6 +308,7 @@ auto operator==(iterator const& other) const noexcept-> bool
 | Iterator Point to Same Element Is Equal | Passed  |
 
 - _**Iterator Type**_
+
 |        ITEMS        | RESULTS |
 |:-------------------:|:-------:|
 | Iterator Type Check | Passed  |
